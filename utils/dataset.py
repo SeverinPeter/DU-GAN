@@ -8,21 +8,25 @@ from functools import partial
 class CTPatchDataset(tordata.Dataset):
     def __init__(self, npy_root, hu_range, transforms=None):
         self.transforms = transforms
-        hu_min, hu_max = hu_range
-        data = torch.from_numpy(np.load(npy_root).astype(np.float32) - 1024)
-        # normalize to [0, 1]
-        data = (torch.clamp(data, hu_min, hu_max) - hu_min) / (hu_max - hu_min)
-        self.low_doses, self.full_doses = data[0], data[1]
+        self.root = npy_root
+        self.hu_min, self.hu_max = hu_range
 
     def __getitem__(self, index):
-        low_dose, full_dose = self.low_doses[index], self.full_doses[index]
+        assert index < len(self.root)
+        with np.load(self.root, mmap_mode='r', allow_pickle=True, encoding='bytes').astype(np.float32) as data:
+          data = data[index]
+        data = data - 1024
+        data = torch.from_numpy(data)
+        # normalize to [0, 1]
+        data = (torch.clamp(data, self.hu_min, self.hu_max) - self.hu_min) / (self.hu_max - self.hu_min)
+        low_dose, full_dose = data
         if self.transforms is not None:
             low_dose = self.transforms(low_dose)
             full_dose = self.transforms(full_dose)
         return low_dose, full_dose
 
     def __len__(self):
-        return len(self.low_doses)
+        return len(self.root)
 
 
 data_root = osp.join(osp.dirname(osp.dirname(osp.abspath(__file__))), 'dataset')
