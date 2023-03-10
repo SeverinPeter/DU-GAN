@@ -10,11 +10,11 @@ class CTPatchDataset(tordata.Dataset):
         self.transforms = transforms
         self.root = npy_root
         self.hu_min, self.hu_max = hu_range
+        self.file = np.load(self.root, mmap_mode='r', allow_pickle=True, encoding='bytes')
 
     def __getitem__(self, index):
         assert index < len(self.root)
-        with np.load(self.root, mmap_mode='r', allow_pickle=True, encoding='bytes').astype(np.float32) as data:
-          data = data[index]
+        data = self.file[index].astype('float32')
         data = data - 1024
         data = torch.from_numpy(data)
         # normalize to [0, 1]

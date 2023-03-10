@@ -29,13 +29,13 @@ class TrainTask(object):
 
         parser.add_argument('--save_freq', type=int, default=1000,
                             help='save frequency')
-        parser.add_argument('--batch_size', type=int, default=256,
+        parser.add_argument('--batch_size', type=int, default=32,
                             help='batch_size')
         parser.add_argument('--test_batch_size', type=int, default=1,
                             help='test_batch_size')
-        parser.add_argument('--num_workers', type=int, default=16,
+        parser.add_argument('--num_workers', type=int, default=4,
                             help='num of workers to use')
-        parser.add_argument('--max_iter', type=int, default=20000,
+        parser.add_argument('--max_iter', type=int, default=20,
                             help='number of training epochs')
         parser.add_argument('--resume_iter', type=int, default=0,
                             help='number of training epochs')
@@ -54,7 +54,7 @@ class TrainTask(object):
         parser.add_argument('--hu_max', type=int, default=300)
 
         parser.add_argument('--run_name', type=str, default='default', help='each run name')
-        parser.add_argument('--model_name', type=str, help='the type of method', default='supcon')
+        parser.add_argument('--model_name', type=str, help='the type of method', default='REDCNN')
 
         # learning rate
         parser.add_argument('--learning_rate', type=float, default=0.05,
