@@ -10,6 +10,7 @@ from utils.dataset import dataset_dict
 from utils.metrics import compute_ssim, compute_psnr, compute_rmse
 from utils.loggerx import LoggerX
 from utils.sampler import RandomSampler
+from utils.loader import get_loader
 
 
 class TrainTask(object):
@@ -27,6 +28,7 @@ class TrainTask(object):
     def build_default_options():
         parser = argparse.ArgumentParser('Default arguments for training of different methods')
 
+        parser.add_argument('--mode', type=str, default='test')
         parser.add_argument('--save_freq', type=int, default=1000,
                             help='save frequency')
         parser.add_argument('--batch_size', type=int, default=32,
@@ -35,7 +37,7 @@ class TrainTask(object):
                             help='test_batch_size')
         parser.add_argument('--num_workers', type=int, default=4,
                             help='num of workers to use')
-        parser.add_argument('--max_iter', type=int, default=20,
+        parser.add_argument('--max_iter', type=int, default=100,
                             help='number of training epochs')
         parser.add_argument('--resume_iter', type=int, default=0,
                             help='number of training epochs')
@@ -48,13 +50,18 @@ class TrainTask(object):
                             help='momentum')
 
         # dataset
+        parser.add_argument('--load_mode', type=int, default=0)
         parser.add_argument('--train_dataset_name', type=str, default='cmayo_train_64')
         parser.add_argument('--test_dataset_name', type=str, default='cmayo_test_512')
         parser.add_argument('--hu_min', type=int, default=-300)
         parser.add_argument('--hu_max', type=int, default=300)
 
+        parser.add_argument('--patch_n', type=int, default=8)
+        parser.add_argument('--patch_size', type=int, default=64)
         parser.add_argument('--run_name', type=str, default='default', help='each run name')
         parser.add_argument('--model_name', type=str, help='the type of method', default='REDCNN')
+        parser.add_argument('--saved_path', type=str, default='./npy_img/')
+        parser.add_argument('--test_patient', type=str, default='L506')
 
         # learning rate
         parser.add_argument('--learning_rate', type=float, default=0.05,
@@ -75,38 +82,24 @@ class TrainTask(object):
 
     def set_loader(self):
         opt = self.opt
-
-        train_dataset = dataset_dict[opt.train_dataset_name](hu_range=(opt.hu_min, opt.hu_max), transforms=None)
-        train_sampler = RandomSampler(train_dataset, batch_size=opt.batch_size,
-                                      num_iter=opt.max_iter,
-                                      restore_iter=opt.resume_iter)
-
-        train_loader = torch.utils.data.DataLoader(
-            dataset=train_dataset,
-            batch_size=opt.batch_size,
-            num_workers=opt.num_workers,
-            sampler=train_sampler,
-            shuffle=False,
-            drop_last=False,
-            pin_memory=True
-        )
-
-        test_dataset = dataset_dict[opt.test_dataset_name](hu_range=(opt.hu_min, opt.hu_max))
-        test_images = [test_dataset[i] for i in range(0, min(300, len(test_dataset)), 50)]
-        low_dose = torch.stack([x[0] for x in test_images], dim=0).cuda()
-        full_dose = torch.stack([x[1] for x in test_images], dim=0).cuda()
-        self.test_images = (low_dose, full_dose)
-        test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=opt.test_batch_size, shuffle=False,
-                                                  num_workers=opt.num_workers, pin_memory=True)
-        self.test_loader = test_loader
-        self.train_loader = train_loader
+        data_loader = get_loader(mode=opt.mode,
+                                 load_mode=opt.load_mode,
+                                 saved_path=opt.saved_path,
+                                 test_patient=opt.test_patient,
+                                 patch_n=opt.patch_n,
+                                 patch_size=opt.patch_size,
+                                 transform=None,
+                                 batch_size=opt.batch_size,
+                                 num_workers=opt.num_workers)
+        self.data_loader = data_loader
 
     def fit(self):
+        self.set_loader()
         opt = self.opt
         if opt.resume_iter > 0:
             self.logger.load_checkpoints(opt.resume_iter)
         # training routine
-        loader = iter(self.train_loader)
+        loader = iter(self.data_loader)
         for n_iter in tqdm.trange(opt.resume_iter + 1, opt.max_iter + 1, disable=(self.rank != 0)):
             inputs = next(loader)
             self.adjust_learning_rate(n_iter)
@@ -124,9 +117,10 @@ class TrainTask(object):
 
     @torch.no_grad()
     def test(self, n_iter):
+        self.set_loader()
         self.generator.eval()
         psnr_score, ssim_score, rmse_score, total_num = 0., 0., 0., 0
-        for low_dose, full_dose in tqdm.tqdm(self.test_loader, desc='test'):
+        for low_dose, full_dose in tqdm.tqdm(self.data_loader, desc='test'):
             batch_size = low_dose.size(0)
             low_dose, full_dose = low_dose.cuda(), full_dose.cuda()
             gen_full_dose = self.generator(low_dose).clamp(0., 1.)

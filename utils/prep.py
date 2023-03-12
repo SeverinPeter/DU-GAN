@@ -76,8 +76,8 @@ def printProgressBar(iteration, total, prefix='', suffix='', decimals=1, length=
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--data_path', type=str, default='./AAPM-Mayo-CT-Challenge/')
-    parser.add_argument('--save_path', type=str, default='./npy_img/')
+    parser.add_argument('--data_path', type=str, default='../dataset/Mayo/')
+    parser.add_argument('--save_path', type=str, default='../npy_img/')
 
     parser.add_argument('--test_patient', type=str, default='L506')
     parser.add_argument('--mm', type=int, default=3)
