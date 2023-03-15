@@ -35,12 +35,12 @@ class REDCNN(TrainTask):
 
         self.logger.modules = [generator, optimizer]
 
-        self.generator = generator.cuda()
+        self.generator = generator.to(self.device)
         self.optimizer = optimizer
 
     def train(self, inputs, n_iter):
         low_dose, full_dose = inputs
-        low_dose, full_dose = low_dose.cuda(), full_dose.cuda()
+        low_dose, full_dose = low_dose.to(self.device), full_dose.to(self.device)
         gen_full_dose = self.generator(low_dose)
         loss = F.mse_loss(gen_full_dose, full_dose)
         self.optimizer.zero_grad()

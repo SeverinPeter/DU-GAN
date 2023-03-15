@@ -52,9 +52,9 @@ class ct_dataset(Dataset):
                                                       target_img,
                                                       self.patch_n,
                                                       self.patch_size)
-            return (input_patches, target_patches)
+            return (input_patches.astype('float32'), target_patches.astype('float32'))
         else:
-            return (input_img, target_img)
+            return (input_img.astype('float32'), target_img.astype('float32'))
 
 
 def get_patch(full_input_img, full_target_img, patch_n, patch_size):

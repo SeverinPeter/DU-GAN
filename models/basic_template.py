@@ -17,6 +17,10 @@ class TrainTask(object):
 
     def __init__(self, opt):
         self.opt = opt
+        if torch.cuda.is_available():
+            self.device = torch.device('cuda')
+        else:
+            self.device = torch.device('cpu')
         self.logger = LoggerX(save_root=osp.join(
             osp.dirname(osp.dirname(osp.abspath(__file__))), 'output', '{}_{}'.format(opt.model_name, opt.run_name)))
         self.rank = dist.get_rank() if dist.is_initialized() else 0
@@ -28,7 +32,7 @@ class TrainTask(object):
     def build_default_options():
         parser = argparse.ArgumentParser('Default arguments for training of different methods')
 
-        parser.add_argument('--mode', type=str, default='test')
+        parser.add_argument('--mode', type=str, default='train')
         parser.add_argument('--save_freq', type=int, default=1000,
                             help='save frequency')
         parser.add_argument('--batch_size', type=int, default=32,
@@ -37,7 +41,7 @@ class TrainTask(object):
                             help='test_batch_size')
         parser.add_argument('--num_workers', type=int, default=4,
                             help='num of workers to use')
-        parser.add_argument('--max_iter', type=int, default=100,
+        parser.add_argument('--max_iter', type=int, default=10,
                             help='number of training epochs')
         parser.add_argument('--resume_iter', type=int, default=0,
                             help='number of training epochs')
@@ -56,7 +60,7 @@ class TrainTask(object):
         parser.add_argument('--hu_min', type=int, default=-300)
         parser.add_argument('--hu_max', type=int, default=300)
 
-        parser.add_argument('--patch_n', type=int, default=8)
+        parser.add_argument('--patch_n', type=int, default=1)
         parser.add_argument('--patch_size', type=int, default=64)
         parser.add_argument('--run_name', type=str, default='default', help='each run name')
         parser.add_argument('--model_name', type=str, help='the type of method', default='REDCNN')
@@ -103,11 +107,12 @@ class TrainTask(object):
         for n_iter in tqdm.trange(opt.resume_iter + 1, opt.max_iter + 1, disable=(self.rank != 0)):
             inputs = next(loader)
             self.adjust_learning_rate(n_iter)
-            self.train(inputs, n_iter)
+            for i, inputs in enumerate(loader):
+                self.train(inputs, i)
             if n_iter % opt.save_freq == 0:
                 self.logger.checkpoints(n_iter)
-                self.test(n_iter)
-                self.generate_images(n_iter)
+                #self.test(n_iter)
+                #self.generate_images(n_iter)
 
     def set_model(opt):
         pass
@@ -122,7 +127,7 @@ class TrainTask(object):
         psnr_score, ssim_score, rmse_score, total_num = 0., 0., 0., 0
         for low_dose, full_dose in tqdm.tqdm(self.data_loader, desc='test'):
             batch_size = low_dose.size(0)
-            low_dose, full_dose = low_dose.cuda(), full_dose.cuda()
+            low_dose, full_dose = low_dose.to(self.device), full_dose.to(self.devie)
             gen_full_dose = self.generator(low_dose).clamp(0., 1.)
             psnr_score += compute_psnr(gen_full_dose, full_dose) * batch_size
             ssim_score += compute_ssim(gen_full_dose, full_dose) * batch_size
