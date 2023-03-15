@@ -105,7 +105,6 @@ class TrainTask(object):
         # training routine
         loader = iter(self.data_loader)
         for n_iter in tqdm.trange(opt.resume_iter + 1, opt.max_iter + 1, disable=(self.rank != 0)):
-            inputs = next(loader)
             self.adjust_learning_rate(n_iter)
             for i, inputs in enumerate(loader):
                 self.train(inputs, i)
